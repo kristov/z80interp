@@ -11,38 +11,46 @@ class Z80Machine:
         return
     def eval(self, line):
         return
-    def parse(self, line):
-        m = re.match( r'^(\s+)([a-z]+)(\s+)([a-z]+)(\s*,\s*)([a-z0-9_]+)', line)
-        if m:
-            return [
-                ['space', m.group(1)],
-                ['cmd', m.group(2)],
-                ['space', m.group(3)],
-                ['cmd', m.group(4)],
-                ['space', m.group(5)],
-                ['arg', m.group(6)]
-            ]
-        return []
 
 class Z80Interp:
     def __init__(self, stdscr):
         self.stdscr = stdscr
         curses.noecho()
         curses.cbreak()
+        curses.curs_set(0)
+        curses.start_color()
+        curses.use_default_colors()
         self.h, self.w = self.stdscr.getmaxyx()
         self.h -= 1
         self.machine = Z80Machine()
+        self.init_colors()
 
     def init_colors(self):
-         curses.init_pair(1, self.foreground, self.background)
-         curses.init_pair(2, curses.COLOR_CYAN, self.background)
-         curses.init_pair(3, curses.COLOR_GREEN, self.background)
-         curses.init_pair(4, curses.COLOR_MAGENTA, self.background)
-         curses.init_pair(5, curses.COLOR_YELLOW, self.foreground)
+         curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLACK)
+         curses.init_pair(2, curses.COLOR_CYAN, curses.COLOR_BLACK)
+         curses.init_pair(3, curses.COLOR_GREEN, curses.COLOR_BLACK)
+         curses.init_pair(4, curses.COLOR_YELLOW, curses.COLOR_BLACK)
+         curses.init_pair(5, curses.COLOR_MAGENTA, curses.COLOR_BLACK)
          self.CSPACE = 1
          self.CCOMMENT = 2
          self.CLABEL = 3
-         self.CARG = 4
+         self.CCMD = 4
+         self.CARG = 5
+
+    def parse(self, line):
+        m = re.match( r'^(\s+)([a-z]+)(\s+)([a-z]+)(\s*,\s*)([a-z0-9_]+)', line)
+        if m:
+            return [
+                [self.CSPACE, m.group(1)],
+                [self.CCMD, m.group(2)],
+                [self.CSPACE, m.group(3)],
+                [self.CCMD, m.group(4)],
+                [self.CSPACE, m.group(5)],
+                [self.CARG, m.group(6)]
+            ]
+        return [
+            [self.CSPACE, line]
+        ]
 
     def step(self):
         self.machine.eval(self.lines[self.line])
@@ -74,14 +82,16 @@ class Z80Interp:
             if idx >= len(self.lines):
                 break
             line = self.lines[idx]
-            data = self.machine.parse(line)
-            if data:
-                for part in data:
-                    ...
+            data = self.parse(line)
             color = curses.A_NORMAL
             if self.line == idx:
                 color = curses.A_REVERSE
-            self.stdscr.addstr(y, 0, line, color)
+            if data:
+                x = 0
+                for part in data:
+                    self.stdscr.addstr(y, x, part[1], curses.color_pair(part[0]))
+                    x += len(part[1])
+#            self.stdscr.addstr(y, 0, line, color)
             y += 1
         self.stdscr.refresh()
 
