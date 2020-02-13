@@ -26,11 +26,11 @@ class Z80Interp:
         self.init_colors()
 
     def init_colors(self):
-         curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLACK)
-         curses.init_pair(2, curses.COLOR_CYAN, curses.COLOR_BLACK)
-         curses.init_pair(3, curses.COLOR_GREEN, curses.COLOR_BLACK)
-         curses.init_pair(4, curses.COLOR_YELLOW, curses.COLOR_BLACK)
-         curses.init_pair(5, curses.COLOR_MAGENTA, curses.COLOR_BLACK)
+         curses.init_pair(1, curses.COLOR_WHITE, -1)
+         curses.init_pair(2, curses.COLOR_CYAN, -1)
+         curses.init_pair(3, curses.COLOR_GREEN, -1)
+         curses.init_pair(4, curses.COLOR_YELLOW, -1)
+         curses.init_pair(5, curses.COLOR_MAGENTA, -1)
          self.CSPACE = 1
          self.CCOMMENT = 2
          self.CLABEL = 3
@@ -38,7 +38,19 @@ class Z80Interp:
          self.CARG = 5
 
     def parse(self, line):
-        m = re.match( r'^(\s+)([a-z]+)(\s+)([a-z]+)(\s*,\s*)([a-z0-9_]+)', line)
+        m = re.match(r'^(\s+)([a-z]+)(\s+)([a-z0-9_]+)(\s*,\s*)([a-z0-9_]+)(\s*)(;.+)', line)
+        if m:
+            return [
+                [self.CSPACE, m.group(1)],
+                [self.CCMD, m.group(2)],
+                [self.CSPACE, m.group(3)],
+                [self.CCMD, m.group(4)],
+                [self.CSPACE, m.group(5)],
+                [self.CARG, m.group(6)],
+                [self.CSPACE, m.group(7)],
+                [self.CCOMMENT, m.group(8)]
+            ]
+        m = re.match(r'^(\s+)([a-z]+)(\s+)([a-z0-9_]+)(\s*,\s*)([a-z0-9_]+)\s*', line)
         if m:
             return [
                 [self.CSPACE, m.group(1)],
@@ -48,9 +60,20 @@ class Z80Interp:
                 [self.CSPACE, m.group(5)],
                 [self.CARG, m.group(6)]
             ]
-        return [
-            [self.CSPACE, line]
-        ]
+        m = re.match(r'^(\s+)([a-z]+)(\s+)([a-z0-9_]+)\s*', line)
+        if m:
+            return [
+                [self.CSPACE, m.group(1)],
+                [self.CCMD, m.group(2)],
+                [self.CSPACE, m.group(3)],
+                [self.CCMD, m.group(4)]
+            ]
+        m = re.match(r'^([a-z0-9_]+):$', line)
+        if m:
+            return [
+                [self.CLABEL, m.group(1)]
+            ]
+        return [[self.CSPACE, line]]
 
     def step(self):
         self.machine.eval(self.lines[self.line])
@@ -89,7 +112,7 @@ class Z80Interp:
             if data:
                 x = 0
                 for part in data:
-                    self.stdscr.addstr(y, x, part[1], curses.color_pair(part[0]))
+                    self.stdscr.addstr(y, x, part[1], curses.color_pair(part[0])|color)
                     x += len(part[1])
 #            self.stdscr.addstr(y, 0, line, color)
             y += 1
