@@ -8,29 +8,36 @@ import re
 import collections
 import array
 
-class Z80Val:
+
+class Z80Reg:
+    """For storing the current and past values for a register"""
+
     def __init__(self):
         self.history = collections.deque([0xff], 100)
 
     def set(self, value):
+        """Set the value in a register with history"""
         self.history.appendleft(value)
 
     def get(self):
+        """Gets the latest value in a register"""
         return self.history[0]
 
 class Z80Machine:
+    """Runnable instance of a Z80 CPU"""
+
     def __init__(self):
         self.message = ""
         self.vars = {}
         self.registers = {
-            "a": Z80Val(),
-            "f": Z80Val(),
-            "b": Z80Val(),
-            "c": Z80Val(),
-            "d": Z80Val(),
-            "e": Z80Val(),
-            "h": Z80Val(),
-            "l": Z80Val()
+            "a": Z80Reg(),
+            "f": Z80Reg(),
+            "b": Z80Reg(),
+            "c": Z80Reg(),
+            "d": Z80Reg(),
+            "e": Z80Reg(),
+            "h": Z80Reg(),
+            "l": Z80Reg()
         }
         self.ops = {
             "ld": self.LD,
@@ -47,11 +54,10 @@ class Z80Machine:
             self.registers.get(m.group(1)).set(U)
             self.registers.get(m.group(2)).set(L)
             return
-        self.message = "LD %s %s" % (arg1, self.evalv(arg2))
-        #self.registers.get(arg1).set(self.evalv(arg2))
+        self.registers.get(arg1).set(self.evalv(arg2))
         return
 
-    def OR(self, arg1, arg2):
+    def OR(self, arg):
         self.message = "arg: %s" % (arg)
 
     def run1(self, op):
