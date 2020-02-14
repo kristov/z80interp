@@ -8,9 +8,28 @@ import re
 
 class Z80Machine:
     def __init__(self):
+        self.message = ""
         return
     def eval(self, line):
-        return
+        m = re.match(r'^\s+([a-z]+\s+[a-z0-9_]+)\s*,\s*([a-z0-9_]+)', line)
+        if m:
+            op = m.group(1)
+            arg1 = m.group(2)
+            self.message = "op[%s] arg1[%s]" % (op, arg1)
+            return 0
+        m = re.match(r'^\s+([a-z]+\s+[a-z0-9_]+)', line)
+        if m:
+            op = m.group(1)
+            self.message = "op[%s]" % (op)
+            return 0
+        m = re.match(r'^\s+([a-z]+)', line)
+        if m:
+            op = m.group(1)
+            self.message = "op[%s]" % (op)
+            return 0
+
+        self.message = ""
+        return 1
 
 class Z80Interp:
     def __init__(self, stdscr):
@@ -68,18 +87,21 @@ class Z80Interp:
                 [self.CSPACE, m.group(3)],
                 [self.CCMD, m.group(4)]
             ]
-        m = re.match(r'^([a-z0-9_]+):$', line)
+        m = re.match(r'^([a-z0-9_]+)(:)$', line)
         if m:
             return [
-                [self.CLABEL, m.group(1)]
+                [self.CLABEL, m.group(1)],
+                [self.CCMD, m.group(2)]
             ]
         return [[self.CSPACE, line]]
 
     def step(self):
-        self.machine.eval(self.lines[self.line])
-        if self.line + 1 == len(self.lines):
-            return
-        self.line += 1
+        not_found = 1
+        while not_found:
+            not_found = self.machine.eval(self.lines[self.line])
+            if self.line + 1 == len(self.lines):
+                return
+            self.line += 1
         return
 
     def key_press(self, c):
@@ -100,7 +122,6 @@ class Z80Interp:
         y = 0
         miny, maxy = self.calc_file_view()
         self.stdscr.clear()
-        self.stdscr.addstr(self.h, 0, "%d -> %d" % (miny, maxy), curses.A_REVERSE)
         for idx in range(miny, maxy):
             if idx >= len(self.lines):
                 break
@@ -116,6 +137,8 @@ class Z80Interp:
                     x += len(part[1])
 #            self.stdscr.addstr(y, 0, line, color)
             y += 1
+        if self.machine.message:
+            self.stdscr.addstr(self.h, 0, self.machine.message)
         self.stdscr.refresh()
 
     def run(self):
