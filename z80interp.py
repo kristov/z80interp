@@ -98,10 +98,10 @@ class Z80Interp:
     def step(self):
         not_found = 1
         while not_found:
+            self.line += 1
             not_found = self.machine.eval(self.lines[self.line])
             if self.line + 1 == len(self.lines):
                 return
-            self.line += 1
         return
 
     def key_press(self, c):
@@ -135,7 +135,6 @@ class Z80Interp:
                 for part in data:
                     self.stdscr.addstr(y, x, part[1], curses.color_pair(part[0])|color)
                     x += len(part[1])
-#            self.stdscr.addstr(y, 0, line, color)
             y += 1
         if self.machine.message:
             self.stdscr.addstr(self.h, 0, self.machine.message)
