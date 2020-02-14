@@ -5,29 +5,111 @@ import curses
 import signal
 import math
 import re
+import collections
+import array
+
+class Z80Val:
+    def __init__(self):
+        self.history = collections.deque([0xff], 100)
+
+    def set(self, value):
+        self.history.appendleft(value)
+
+    def get(self):
+        return self.history[0]
 
 class Z80Machine:
     def __init__(self):
         self.message = ""
+        self.vars = {}
+        self.registers = {
+            "a": Z80Val(),
+            "f": Z80Val(),
+            "b": Z80Val(),
+            "c": Z80Val(),
+            "d": Z80Val(),
+            "e": Z80Val(),
+            "h": Z80Val(),
+            "l": Z80Val()
+        }
+        self.ops = {
+            "ld": self.LD,
+            "or": self.OR
+        }
+        self.memory = array.array('i',(0,)*65536)
+
+    def LD(self, arg1, arg2):
+        m = re.match(r'^([hbd])([lce])$', arg1)
+        if m:
+            val = self.evalv(arg2)
+            U = (val >> 8) & 0xff
+            L = val & 0xff
+            self.registers.get(m.group(1)).set(U)
+            self.registers.get(m.group(2)).set(L)
+            return
+        self.message = "LD %s %s" % (arg1, self.evalv(arg2))
+        #self.registers.get(arg1).set(self.evalv(arg2))
         return
+
+    def OR(self, arg1, arg2):
+        self.message = "arg: %s" % (arg)
+
+    def run1(self, op):
+        func = self.ops.get(op)
+        if func:
+            func()
+
+    def run2(self, op, arg):
+        func = self.ops.get(op)
+        if func:
+            func(arg)
+
+    def run3(self, op, arg1, arg2):
+        func = self.ops.get(op)
+        if func:
+            func(arg1, arg2)
+
+    def set_var(self, name, val):
+        m = re.match(r'^0x([0-9a-f]+)$', val)
+        if m:
+            val = int(val, 16)
+        self.vars[name] = val
+
+    def evalv(self, val):
+        m = re.match(r'^0x([0-9a-f]+)$', val)
+        if m:
+            return int(m.group(1), 16)
+        m = re.match(r'\(([hbd])([lce])\)', val)
+        if m:
+            return self.deref(m.group(1), m.group(2))
+        var = self.vars.get(val)
+        if var:
+            return var
+        return val
+
+    def deref(self, reg1, reg2):
+        U = self.registers.get(reg1).get()
+        L = self.registers.get(reg2).get()
+        val = (U << 8) | L
+        return self.memory[val]
+
     def eval(self, line):
-        m = re.match(r'^\s+([a-z]+\s+[a-z0-9_]+)\s*,\s*([a-z0-9_]+)', line)
+        m = re.match(r'^\s+([a-z]+)\s+([a-z0-9_]+)\s*,\s*([a-z0-9_\(\)]+)', line)
         if m:
-            op = m.group(1)
-            arg1 = m.group(2)
-            self.message = "op[%s] arg1[%s]" % (op, arg1)
+            self.run3(m.group(1), m.group(2), m.group(3))
             return 0
-        m = re.match(r'^\s+([a-z]+\s+[a-z0-9_]+)', line)
+        m = re.match(r'^\s+([a-z]+)\s+([a-z0-9_]+)', line)
         if m:
-            op = m.group(1)
-            self.message = "op[%s]" % (op)
+            self.run2(m.group(1), m.group(2))
             return 0
         m = re.match(r'^\s+([a-z]+)', line)
         if m:
-            op = m.group(1)
-            self.message = "op[%s]" % (op)
+            self.run1(m.group(1))
             return 0
-
+        m = re.match(r'^([a-z0-9_]+):\s+equ\s+([a-z0-9]+)$', line)
+        if m:
+            self.set_var(m.group(1), m.group(2))
+            return 0
         self.message = ""
         return 1
 
@@ -57,7 +139,7 @@ class Z80Interp:
          self.CARG = 5
 
     def parse(self, line):
-        m = re.match(r'^(\s+)([a-z]+)(\s+)([a-z0-9_]+)(\s*,\s*)([a-z0-9_]+)(\s*)(;.+)', line)
+        m = re.match(r'^(\s+)([a-z]+)(\s+)([a-z0-9_]+)(\s*,\s*)([a-z0-9_\(\)]+)(\s*)(;.+)', line)
         if m:
             return [
                 [self.CSPACE, m.group(1)],
@@ -69,7 +151,7 @@ class Z80Interp:
                 [self.CSPACE, m.group(7)],
                 [self.CCOMMENT, m.group(8)]
             ]
-        m = re.match(r'^(\s+)([a-z]+)(\s+)([a-z0-9_]+)(\s*,\s*)([a-z0-9_]+)\s*', line)
+        m = re.match(r'^(\s+)([a-z]+)(\s+)([a-z0-9_]+)(\s*,\s*)([a-z0-9_\(\)]+)', line)
         if m:
             return [
                 [self.CSPACE, m.group(1)],
@@ -93,13 +175,23 @@ class Z80Interp:
                 [self.CLABEL, m.group(1)],
                 [self.CCMD, m.group(2)]
             ]
+        m = re.match(r'^([a-z0-9_]+)(:\s+equ\s+)([a-z0-9]+)$', line)
+        if m:
+            return [
+                [self.CLABEL, m.group(1)],
+                [self.CCMD, m.group(2)],
+                [self.CARG, m.group(3)]
+            ]
         return [[self.CSPACE, line]]
+
+    def eval(self):
+        return self.machine.eval(self.lines[self.line])
 
     def step(self):
         not_found = 1
         while not_found:
             self.line += 1
-            not_found = self.machine.eval(self.lines[self.line])
+            not_found = self.eval()
             if self.line + 1 == len(self.lines):
                 return
         return
@@ -117,6 +209,14 @@ class Z80Interp:
             miny = self.line - hh
             maxy = miny + self.h
         return miny, maxy
+
+    def draw_registers(self):
+        x = self.w - 10
+        y = 0
+        self.stdscr.addstr(y + 0, x, "a: %d" % (self.machine.registers["a"].get()))
+        self.stdscr.addstr(y + 1, x, "h: %d" % (self.machine.registers["h"].get()))
+        self.stdscr.addstr(y + 2, x, "l: %d" % (self.machine.registers["l"].get()))
+        return
 
     def draw(self):
         y = 0
@@ -138,10 +238,12 @@ class Z80Interp:
             y += 1
         if self.machine.message:
             self.stdscr.addstr(self.h, 0, self.machine.message)
+        self.draw_registers()
         self.stdscr.refresh()
 
     def run(self):
         self.line = 0
+        self.eval()
         self.draw()
         while True:
             c = self.stdscr.getch()
