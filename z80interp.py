@@ -41,39 +41,145 @@ class Z80Machine:
         }
         self.ops = {
             "ld": self.LD,
-            "or": self.OR
+            "or": self.OR,
+            "inc": self.INC,
+            "dec": self.DEC
         }
         self.memory = array.array('i',(0,)*65536)
+        self.pat = {
+            "hex8": re.compile(r'^0x[0-9a-f]{2}$'),
+            "hex16": re.compile(r'^0x[0-9a-f]{4}$'),
+            "idrr16": re.compile(r'^\(([hbd])([lce])\)$'),
+            "idrc16": re.compile(r'^\((0x[0-9a-f]{4})\)$'),
+            "reg8": re.compile(r'^[afbcdehl]$'),
+            "reg16": re.compile(r'^([hbd])([lce])$'),
+            "label": re.compile(r'^[a-z0-9_]+')
+        }
 
     def LD(self, arg1, arg2):
-        m = re.match(r'^([hbd])([lce])$', arg1)
-        if m:
-            val = self.evalv(arg2)
-            U = (val >> 8) & 0xff
-            L = val & 0xff
-            self.registers.get(m.group(1)).set(U)
-            self.registers.get(m.group(2)).set(L)
-            return
-        self.registers.get(arg1).set(self.evalv(arg2))
+        if arg1[0] == "REG16":
+            if arg2[0] == "REG16": # ld hl,de
+                self.registers.get(arg1[1]).set(self.registers.get(arg2[1]))
+                self.registers.get(arg1[2]).set(self.registers.get(arg2[2]))
+                return
+            if arg2[0] == "IDRC16": # ld hl,(**)
+                L = self.memory[arg2[1]]
+                U = self.memory[arg2[1] + 1]
+                self.registers.get(arg1[1]).set(U)
+                self.registers.get(arg1[2]).set(L)
+                return
+            if arg2[0] == "CONST16": # ld hl,**
+                self.registers.get(arg1[1]).set(arg2[1])
+                self.registers.get(arg1[2]).set(arg2[2])
+                return
+        if arg1[0] == "IDRR16":
+            if arg2[0] == "REG8": # ld (hl),a
+                addr = self.deref(arg1[1], arg1[2])
+                self.memory[addr] = self.registers.get(arg2[1])
+                return
+            if arg2[0] == "CONST8": # ld (hl),*
+                addr = self.deref(arg1[1], arg1[2])
+                self.memory[addr] = arg2[1]
+                return
+        if arg1[0] == "IDRC16":
+            if arg2[0] == "REG8": # ld (**),a
+                self.memory[arg2[1]] = self.registers.get(arg2[1])
+                return
+            if arg2[0] == "REG16": # ld (**),hl
+                U = self.registers.get(arg2[1])
+                L = self.registers.get(arg2[2])
+                self.memory[arg1[1]] = (U << 8) | L
+                return
+        if arg1[0] == "REG8":
+            if arg2[0] == "REG8": # ld l,a
+                self.registers.get(arg1[1]).set(self.registers.get(arg2[1]).get())
+                return
+            if arg2[0] == "IDRR16": # ld a,(hl)
+                addr = self.deref(arg2[1], arg2[2])
+                self.registers.get(arg1[1]).set(self.memory[addr])
+                return
+            if arg2[0] == "IDRC16": # ld a,(**)
+                self.registers.get(arg1[1]).set(self.memory[arg2[1]])
+                return
+            if arg2[0] == "CONST8": # ld a,*
+                self.registers.get(arg1[1]).set(arg2[1])
+                return
+        self.message = "invald LD (%s %s)" % (arg1[0], arg2[0])
         return
 
-    def OR(self, arg):
-        self.message = "arg: %s" % (arg)
+    def OR(self, arg1):
+        if arg1[0] == "REG8": # or b
+            areg = self.registers.get("a")
+            val = self.registers.get(arg1[1]).get()
+            areg.set(areg.get()|val)
+            # if zero set zero flag
+            return
+        if arg1[0] == "INDIR": # or (hl)
+            addr = self.deref(arg1[1], arg1[2])
+            val = self.memory[addr]
+            a = self.get_reg("a")|val
+            self.set_reg("a", a)
+            return
+        self.message = "invald OR (%s)" % (arg[0])
 
-    def run1(self, op):
+    def INC(self, arg1):
+        if arg1[0] == "REG8":
+            val = self.registers.get(arg1[1]).get()
+            val += 1
+            self.registers.get(arg1[1]).set(val)
+            return
+        if arg1[0] == "REG16":
+            # TODO
+            return
+        return
+
+    def DEC(self, arg1):
+        if arg1[0] == "REG8":
+            val = self.registers.get(arg1[1]).get()
+            val -= 1
+            self.registers.get(arg1[1]).set(val)
+            return
+
+    def darg(self, arg):
+        if self.pat["reg8"].match(arg):
+            return ['REG8', arg]
+        m = self.pat["reg16"].match(arg)
+        if m:
+            return ['REG16', m.group(1), m.group(2)]
+        if self.pat["hex8"].match(arg):
+            return ["CONST8", int(arg, 16)]
+        if self.pat["hex16"].match(arg):
+            val = int(arg, 16)
+            U = (val >> 8) & 0xff
+            L = val & 0xff
+            return ["CONST16", U, L]
+        m = self.pat["idrr16"].match(arg)
+        if m:
+            return ["IDRR16", m.group(1), m.group(2)]
+        m = self.pat["idrc16"].match(arg)
+        if m:
+            return ["IDRC16", m.group(1)]
+        if self.pat["label"].match(arg):
+            val = self.vars.get(arg)
+            U = (val >> 8) & 0xff
+            L = val & 0xff
+            return ["CONST16", U, L]
+        return ["ERROR", arg]
+
+    def decode1(self, op):
         func = self.ops.get(op)
         if func:
             func()
 
-    def run2(self, op, arg):
+    def decode2(self, op, arg):
         func = self.ops.get(op)
         if func:
-            func(arg)
+            func(self.darg(arg))
 
-    def run3(self, op, arg1, arg2):
+    def decode3(self, op, arg1, arg2):
         func = self.ops.get(op)
         if func:
-            func(arg1, arg2)
+            func(self.darg(arg1), self.darg(arg2))
 
     def set_var(self, name, val):
         m = re.match(r'^0x([0-9a-f]+)$', val)
@@ -96,21 +202,20 @@ class Z80Machine:
     def deref(self, reg1, reg2):
         U = self.registers.get(reg1).get()
         L = self.registers.get(reg2).get()
-        val = (U << 8) | L
-        return self.memory[val]
+        return (U << 8) | L
 
     def eval(self, line):
         m = re.match(r'^\s+([a-z]+)\s+([a-z0-9_]+)\s*,\s*([a-z0-9_\(\)]+)', line)
         if m:
-            self.run3(m.group(1), m.group(2), m.group(3))
+            self.decode3(m.group(1), m.group(2), m.group(3))
             return 0
         m = re.match(r'^\s+([a-z]+)\s+([a-z0-9_]+)', line)
         if m:
-            self.run2(m.group(1), m.group(2))
+            self.decode2(m.group(1), m.group(2))
             return 0
         m = re.match(r'^\s+([a-z]+)', line)
         if m:
-            self.run1(m.group(1))
+            self.decode1(m.group(1))
             return 0
         m = re.match(r'^([a-z0-9_]+):\s+equ\s+([a-z0-9]+)$', line)
         if m:
@@ -220,8 +325,13 @@ class Z80Interp:
         x = self.w - 10
         y = 0
         self.stdscr.addstr(y + 0, x, "a: %d" % (self.machine.registers["a"].get()))
-        self.stdscr.addstr(y + 1, x, "h: %d" % (self.machine.registers["h"].get()))
-        self.stdscr.addstr(y + 2, x, "l: %d" % (self.machine.registers["l"].get()))
+        self.stdscr.addstr(y + 1, x, "f: %d" % (self.machine.registers["f"].get()))
+        self.stdscr.addstr(y + 2, x, "b: %d" % (self.machine.registers["b"].get()))
+        self.stdscr.addstr(y + 3, x, "c: %d" % (self.machine.registers["c"].get()))
+        self.stdscr.addstr(y + 4, x, "d: %d" % (self.machine.registers["d"].get()))
+        self.stdscr.addstr(y + 5, x, "e: %d" % (self.machine.registers["e"].get()))
+        self.stdscr.addstr(y + 6, x, "h: %d" % (self.machine.registers["h"].get()))
+        self.stdscr.addstr(y + 7, x, "l: %d" % (self.machine.registers["l"].get()))
         return
 
     def draw(self):
