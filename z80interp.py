@@ -43,7 +43,9 @@ class Z80Machine:
             "ld": self.LD,
             "or": self.OR,
             "inc": self.INC,
-            "dec": self.DEC
+            "dec": self.DEC,
+            "jp": self.JP,
+            "sub": self.SUB
         }
         self.memory = array.array('i',(0,)*65536)
         self.pat = {
@@ -140,6 +142,12 @@ class Z80Machine:
             self.registers.get(arg1[1]).set(val)
             return
 
+    def SUB(self, arg1):
+        return
+
+    def JP(self, arg1):
+        return
+
     def darg(self, arg):
         if self.pat["reg8"].match(arg):
             return ['REG8', arg]
@@ -160,24 +168,38 @@ class Z80Machine:
         if m:
             return ["IDRC16", m.group(1)]
         if self.pat["label"].match(arg):
-            val = self.vars.get(arg)
+            val = self.getvar(arg)
+            if not val:
+                return ["LABEL", arg]
             U = (val >> 8) & 0xff
             L = val & 0xff
             return ["CONST16", U, L]
         return ["ERROR", arg]
 
-    def decode1(self, op):
+    def getvar(self, var):
+        val = self.vars.get(var)
+        if val:
+            return val
+        self.message = "var: %s not found" % (var)
+
+    def getop(self, op):
         func = self.ops.get(op)
+        if func:
+            return func
+        self.message = "unknown op: %s" % (op)
+
+    def decode1(self, op):
+        func = self.getop(op)
         if func:
             func()
 
     def decode2(self, op, arg):
-        func = self.ops.get(op)
+        func = self.getop(op)
         if func:
             func(self.darg(arg))
 
     def decode3(self, op, arg1, arg2):
-        func = self.ops.get(op)
+        func = self.getop(op)
         if func:
             func(self.darg(arg1), self.darg(arg2))
 
