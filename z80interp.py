@@ -40,12 +40,14 @@ class Z80Machine:
             "l": Z80Reg()
         }
         self.ops = {
-            "ld": self.LD,
-            "or": self.OR,
-            "inc": self.INC,
-            "dec": self.DEC,
-            "jp": self.JP,
-            "sub": self.SUB
+            "ld2": self.LD,
+            "or1": self.OR,
+            "inc1": self.INC,
+            "dec1": self.DEC,
+            "jp1": self.JP1,
+            "jp2": self.JP2,
+            "sub1": self.SUB1,
+            "ret0": self.RET0
         }
         self.memory = array.array('i',(0,)*65536)
         self.pat = {
@@ -145,7 +147,10 @@ class Z80Machine:
     def SUB(self, arg1):
         return
 
-    def JP(self, arg1):
+    def JP1(self, arg1):
+        return
+
+    def JP2(self, arg1, arg2):
         return
 
     def darg(self, arg):
@@ -182,24 +187,25 @@ class Z80Machine:
             return val
         self.message = "var: %s not found" % (var)
 
-    def getop(self, op):
+    def getop(self, op, argc):
+        op = op + argc
         func = self.ops.get(op)
         if func:
             return func
         self.message = "unknown op: %s" % (op)
 
-    def decode1(self, op):
-        func = self.getop(op)
+    def decode0(self, op):
+        func = self.getop(op, "0")
         if func:
             func()
 
-    def decode2(self, op, arg):
-        func = self.getop(op)
+    def decode1(self, op, arg):
+        func = self.getop(op, "1")
         if func:
             func(self.darg(arg))
 
-    def decode3(self, op, arg1, arg2):
-        func = self.getop(op)
+    def decode2(self, op, arg1, arg2):
+        func = self.getop(op, "2")
         if func:
             func(self.darg(arg1), self.darg(arg2))
 
@@ -229,15 +235,15 @@ class Z80Machine:
     def eval(self, line):
         m = re.match(r'^\s+([a-z]+)\s+([a-z0-9_]+)\s*,\s*([a-z0-9_\(\)]+)', line)
         if m:
-            self.decode3(m.group(1), m.group(2), m.group(3))
+            self.decode2(m.group(1), m.group(2), m.group(3))
             return 0
         m = re.match(r'^\s+([a-z]+)\s+([a-z0-9_]+)', line)
         if m:
-            self.decode2(m.group(1), m.group(2))
+            self.decode1(m.group(1), m.group(2))
             return 0
         m = re.match(r'^\s+([a-z]+)', line)
         if m:
-            self.decode1(m.group(1))
+            self.decode0(m.group(1))
             return 0
         m = re.match(r'^([a-z0-9_]+):\s+equ\s+([a-z0-9]+)$', line)
         if m:
