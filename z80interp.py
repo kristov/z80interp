@@ -46,21 +46,92 @@ class Z80Machine:
             "dec1": self.DEC,
             "jp1": self.JP1,
             "jp2": self.JP2,
-            "sub1": self.SUB1,
-            "ret0": self.RET0
+            "sub1": self.SUB,
+            "ret0": self.RET
         }
+        self.patterns = [
+            re.compile(r'^\s+(ccf|cpd|cpdr|cpi|cpir|cpl|daa|di|ei|exx|halt|ind|indr|ini|inir|ldd|lddr|ldi|ldir|neg|nop|otdr|otir|outd|outi|ret|reti|retn|rla|rlca|rld|rra|rrca|rrd|scf)$'),
+            re.compile(r'^\s+(adc|sbc)\s+(hl)\s*,\s*(bc|de|hl|sp)$'),
+            re.compile(r'^\s+(adc|add|sbc)\s+(a)\s*,\s*(\(hl\))$'),
+            re.compile(r'^\s+(adc|add|sbc)\s+(a)\s*,\s*(\(ix\+[a-z0-9\_]+\))$'),
+            re.compile(r'^\s+(adc|add|sbc)\s+(a)\s*,\s*(\(iy\+[a-z0-9\_]+\))$'),
+            re.compile(r'^\s+(adc|add|sbc)\s+(a)\s*,\s*([a-z0-9\_]+)$'),
+            re.compile(r'^\s+(adc|add|sbc)\s+(a)\s*,\s*(a|b|c|d|e|h|l|ixh|ixl|iyh|iyl)$'),
+            re.compile(r'^\s+(add)\s+(hl|ix|iy)\s*,\s*(bc|de|hl|sp)$'),
+            re.compile(r'^\s+(add)\s+(ix)\s*,\s*(ix)$'),
+            re.compile(r'^\s+(add)\s+(iy)\s*,\s*(iy)$'),
+            re.compile(r'^\s+(and|cp|or|sub|xor)\s+(\(hl\))$'),
+            re.compile(r'^\s+(and|cp|or|sub|xor)\s+(\(ix\+[a-z0-9\_]+\))$'),
+            re.compile(r'^\s+(and|cp|or|sub|xor)\s+(\(iy\+[a-z0-9\_]+\))$'),
+            re.compile(r'^\s+(and|cp|or|sub|xor)\s+([a-z0-9\_]+)$'),
+            re.compile(r'^\s+(and|cp|or|sub|xor)\s+(a|b|c|d|e|h|l|ixh|ixl|iyh|iyl)$'),
+            re.compile(r'^\s+(bit|res|set)\s+([0-7])\s*,\s*(\(hl\))$'),
+            re.compile(r'^\s+(bit|res|set)\s+([0-7])\s*,\s*(\(ix\+[a-z0-9\_]+\))$'),
+            re.compile(r'^\s+(bit|res|set)\s+([0-7])\s*,\s*(\(iy\+[a-z0-9\_]+\))$'),
+            re.compile(r'^\s+(bit|res|set)\s+([0-7])\s*,\s*(\(ix\+[a-z0-9\_]+\))\s*,\s*(a|b|c|d|e|h|l)$'),
+            re.compile(r'^\s+(bit|res|set)\s+([0-7])\s*,\s*(\(iy\+[a-z0-9\_]+\))\s*,\s*(a|b|c|d|e|h|l)$'),
+            re.compile(r'^\s+(bit|res|set)\s+([0-7])\s*,\s*(a|b|c|d|e|h|l)$'),
+            re.compile(r'^\s+(call|jp)\s+([a-z0-9\_]+)$'),
+            re.compile(r'^\s+(call|jp)\s+(c|m|nc|nz|p|pe|po|z)\s*,\s*([a-z0-9\_]+)$'),
+            re.compile(r'^\s+(dec|inc)\s+(\(hl\))$'),
+            re.compile(r'^\s+(dec|inc)\s+(\(ix\+[a-z0-9\_]+\))$'),
+            re.compile(r'^\s+(dec|inc)\s+(\(iy\+[a-z0-9\_]+\))$'),
+            re.compile(r'^\s+(dec|inc)\s+(a|b|c|d|e|h|l|ixh|ixl|iyh|iyl|bc|de|sp|hl|ix|iy)$'),
+            re.compile(r'^\s+(djnz|jr)\s+([a-z0-9\_]+)$'),
+            re.compile(r'^\s+(ex)\s+(\(sp\))\s*,\s*(hl|ix|iy)$'),
+            re.compile(r'^\s+(ex)\s+(af)\s*,\s*(af\')$'),
+            re.compile(r'^\s+(ex)\s+(de)\s*,\s*(hl)$'),
+            re.compile(r'^\s+(im)\s+([0-2])$'),
+            re.compile(r'^\s+(in)\s+(\(c\))$'),
+            re.compile(r'^\s+(in)\s+(a)\s*,\s*(\([a-z0-9\_]+\))$'),
+            re.compile(r'^\s+(in)\s+(a|b|c|d|e|h|l)\s*,\s*(\(c\))$'),
+            re.compile(r'^\s+(jp)\s+(\(hl\)|\(ix\)|\(iy\))$'),
+            re.compile(r'^\s+(jr)\s+(c|nc|nz|z)\s*,\s*([a-z0-9\_]+)$'),
+            re.compile(r'^\s+(ld)\s+(\([a-z0-9\_]+\))\s*,\s*(a)$'),
+            re.compile(r'^\s+(ld)\s+(\([a-z0-9\_]+\))\s*,\s*(bc|de|hl|ix|iy|sp)$'),
+            re.compile(r'^\s+(ld)\s+(\(bc\)|\(de\))\s*,\s*(a)$'),
+            re.compile(r'^\s+(ld)\s+(\(hl\))\s*,\s*([a-z0-9\_]+)$'),
+            re.compile(r'^\s+(ld)\s+(\(hl\))\s*,\s*(a|b|c|d|e|h|l)$'),
+            re.compile(r'^\s+(ld)\s+(\(ix\+[a-z0-9\_]+\))\s*,\s*([a-z0-9\_]+)$'),
+            re.compile(r'^\s+(ld)\s+(\(ix\+[a-z0-9\_]+\))\s*,\s*(a|b|c|d|e|h|l)$'),
+            re.compile(r'^\s+(ld)\s+(\(iy\+[a-z0-9\_]+\))\s*,\s*([a-z0-9\_]+)$'),
+            re.compile(r'^\s+(ld)\s+(\(iy\+[a-z0-9\_]+\))\s*,\s*(a|b|c|d|e|h|l)$'),
+            re.compile(r'^\s+(ld)\s+(a)\s*,\s*(\([a-z0-9\_]+\))$'),
+            re.compile(r'^\s+(ld)\s+(a)\s*,\s*(\(bc\)|\(de\))$'),
+            re.compile(r'^\s+(ld)\s+(a)\s*,\s*(a|b|c|d|e|h|l|ixh|ixl|iyh|iyl|i|r)$'),
+            re.compile(r'^\s+(ld)\s+(a|b|c|d|e|h|l)\s*,\s*(\(hl\))$'),
+            re.compile(r'^\s+(ld)\s+(a|b|c|d|e|h|l)\s*,\s*(\(ix\+[a-z0-9\_]+\))$'),
+            re.compile(r'^\s+(ld)\s+(a|b|c|d|e|h|l)\s*,\s*(\(iy\+[a-z0-9\_]+\))$'),
+            re.compile(r'^\s+(ld)\s+(a|b|c|d|e|h|l)\s*,\s*([a-z0-9\_]+)$'),
+            re.compile(r'^\s+(ld)\s+(b|c|d|e|h)\s*,\s*(a|b|c|d|e|h|l|ixh|ixl|iyh|iyl)$'),
+            re.compile(r'^\s+(ld)\s+(l)\s*,\s*(a|b|c|d|e|h|l)$'),
+            re.compile(r'^\s+(ld)\s+(bc|de|hl|ix|iy|sp)\s*,\s*(\([a-z0-9\_]+\))$'),
+            re.compile(r'^\s+(ld)\s+(bc|de|hl|ix|iy|sp)\s*,\s*([a-z0-9\_]+)$'),
+            re.compile(r'^\s+(ld)\s+(ixh|ixl|iyh|iyl)\s*,\s*(a|b|c|d|e)$'),
+            re.compile(r'^\s+(ld)\s+(ixh|ixl)\s*,\s*(ixh|ixl)$'),
+            re.compile(r'^\s+(ld)\s+(iyh|iyl)\s*,\s*(iyh|iyl)$'),
+            re.compile(r'^\s+(ld)\s+(ixh|ixl|iyh|iyl)\s*,\s*([a-z0-9\_]+)$'),
+            re.compile(r'^\s+(ld)\s+(i|r)\s*,\s*(a)$'),
+            re.compile(r'^\s+(ld)\s+(sp)\s*,\s*(hl|ix|iy)$'),
+            re.compile(r'^\s+(out)\s+(\([a-z0-9\_]+\))\s*,\s*(a)$'),
+            re.compile(r'^\s+(out)\s+(\(c\))\s*,\s*(0)$'),
+            re.compile(r'^\s+(out)\s+(\(c\))\s*,\s*(a|b|c|d|e|h|l)$'),
+            re.compile(r'^\s+(pop|push)\s+(af|bc|de|hl|ix|iy)$'),
+            re.compile(r'^\s+(ret)\s+(c|m|nc|nz|p|pe|po|z)$'),
+            re.compile(r'^\s+(rl|rlc|rr|rrc|sla|sll|sra|srl)\s+(\(hl\))$'),
+            re.compile(r'^\s+(rl|rlc|rr|rrc|sla|sll|sra|srl)\s+(\(ix\+[a-z0-9\_]+\))$'),
+            re.compile(r'^\s+(rl|rlc|rr|rrc|sla|sll|sra|srl)\s+(\(iy\+[a-z0-9\_]+\))$'),
+            re.compile(r'^\s+(rl|rlc|rr|rrc|sla|sll|sra|srl)\s+(\(ix\+[a-z0-9\_]+\))\s*,\s*(a|b|c|d|e|h|l)$'),
+            re.compile(r'^\s+(rl|rlc|rr|rrc|sla|sll|sra|srl)\s+(\(iy\+[a-z0-9\_]+\))\s*,\s*(a|b|c|d|e|h|l)$'),
+            re.compile(r'^\s+(rl|rlc|rr|rrc|sla|sll|sra|srl)\s+(a|b|c|d|e|h|l)$'),
+            re.compile(r'^\s+(rst)\s+(00h|08h|10h|18h|20h|28h|30h|38h)$'),
+        ]
         self.memory = array.array('i',(0,)*65536)
-        self.pat = {
-            "hex8": re.compile(r'^0x[0-9a-f]{2}$'),
-            "hex16": re.compile(r'^0x[0-9a-f]{4}$'),
-            "idrr16": re.compile(r'^\(([hbd])([lce])\)$'),
-            "idrc16": re.compile(r'^\((0x[0-9a-f]{4})\)$'),
-            "reg8": re.compile(r'^[afbcdehl]$'),
-            "reg16": re.compile(r'^([hbd])([lce])$'),
-            "label": re.compile(r'^[a-z0-9_]+')
-        }
 
-    def LD(self, arg1, arg2):
+    def LD(self, args):
+        self.parseargs(args)
+        return
+
         if arg1[0] == "REG16":
             if arg2[0] == "REG16": # ld hl,de
                 self.registers.get(arg1[1]).set(self.registers.get(arg2[1]))
@@ -127,6 +198,7 @@ class Z80Machine:
         self.message = "invald OR (%s)" % (arg[0])
 
     def INC(self, arg1):
+        return
         if arg1[0] == "REG8":
             val = self.registers.get(arg1[1]).get()
             val += 1
@@ -143,43 +215,60 @@ class Z80Machine:
             val -= 1
             self.registers.get(arg1[1]).set(val)
             return
+        if arg1[0] == "REG16":
+            # TODO
+            return
 
     def SUB(self, arg1):
         return
 
     def JP1(self, arg1):
+        self.message = "JP1 (%s)" % (arg1[0])
         return
 
     def JP2(self, arg1, arg2):
+        self.message = "JP2 (%s %s)" % (arg1[0], arg2[0])
+        return
+
+    def RET(self):
         return
 
     def darg(self, arg):
-        if self.pat["reg8"].match(arg):
-            return ['REG8', arg]
-        m = self.pat["reg16"].match(arg)
+        val = arg[1]
+        if re.match(r'^(?:c|m|nc|nz|p|pe|po|z)$', val):
+            return ['FLAG', val]
+        if re.match(r'^(?:a|b|c|d|e|h|l|ixh|ixl|iyh|iyl)$', val):
+            return ['REG8', val]
+        if re.match(r'^(?:af|bc|de|hl|ix|iy|sp)$', val):
+            return ['REG16', val]
+        if re.match(r'^(?:0|1|2|3|4|5|6|7)$', val):
+            return ['BIT', val]
+        if re.match(r'^0x[0-9a-f]{2}$', val):
+            return ['CONST8', int(val, 16)]
+        if re.match(r'^0x[0-9a-f]{4}$', val):
+            return ['CONST16', int(val, 16)]
+        m = re.match(r'^([0-9a-f]{2})h$', val)
         if m:
-            return ['REG16', m.group(1), m.group(2)]
-        if self.pat["hex8"].match(arg):
-            return ["CONST8", int(arg, 16)]
-        if self.pat["hex16"].match(arg):
-            val = int(arg, 16)
-            U = (val >> 8) & 0xff
-            L = val & 0xff
-            return ["CONST16", U, L]
-        m = self.pat["idrr16"].match(arg)
+            return ['CONST8', int("0x" + val, 16)]
+        m = re.match(r'^([0-9a-f]{4})h$', val)
         if m:
-            return ["IDRR16", m.group(1), m.group(2)]
-        m = self.pat["idrc16"].match(arg)
-        if m:
-            return ["IDRC16", m.group(1)]
-        if self.pat["label"].match(arg):
-            val = self.getvar(arg)
-            if not val:
-                return ["LABEL", arg]
-            U = (val >> 8) & 0xff
-            L = val & 0xff
-            return ["CONST16", U, L]
-        return ["ERROR", arg]
+            return ['CONST16', int("0x" + val, 16)]
+        if re.match(r'^i(?:x|y)\+0x[0-9a-f]{2}$', val):
+            return ['INHEX8', val]
+        if re.match(r'^i(?:x|y)\+[0-9a-f]{2}h$', val):
+            return ['INHEX8', val]
+            #return ["CONST8", int(arg, 16)]
+            #val = int(arg, 16)
+            #U = (val >> 8) & 0xff
+            #L = val & 0xff
+            #return ["CONST16", U, L]
+            #val = self.getvar(arg)
+            #if not val:
+            #    return ["LABEL", arg]
+            #U = (val >> 8) & 0xff
+            #L = val & 0xff
+            #return ["CONST16", U, L]
+        self.message = "NOPE: %s %s" % (arg[0], val)
 
     def getvar(self, var):
         val = self.vars.get(var)
@@ -187,27 +276,31 @@ class Z80Machine:
             return val
         self.message = "var: %s not found" % (var)
 
-    def getop(self, op, argc):
-        op = op + argc
+    def getop(self, op):
         func = self.ops.get(op)
         if func:
             return func
         self.message = "unknown op: %s" % (op)
 
     def decode0(self, op):
-        func = self.getop(op, "0")
+        op = op[1] + "0"
+        func = self.getop(op)
         if func:
             func()
 
-    def decode1(self, op, arg):
-        func = self.getop(op, "1")
+    def decode1(self, op, arg1):
+        op = op[1] + "1"
+        func = self.getop(op)
         if func:
-            func(self.darg(arg))
+            args = self.parseargs(op, [arg1])
+            func(args)
 
     def decode2(self, op, arg1, arg2):
-        func = self.getop(op, "2")
+        op = op[1] + "2"
+        func = self.getop(op)
         if func:
-            func(self.darg(arg1), self.darg(arg2))
+            args = self.parseargs(op, [arg1, arg2])
+            func(args)
 
     def set_var(self, name, val):
         m = re.match(r'^0x([0-9a-f]+)$', val)
@@ -215,42 +308,26 @@ class Z80Machine:
             val = int(val, 16)
         self.vars[name] = val
 
-    def evalv(self, val):
-        m = re.match(r'^0x([0-9a-f]+)$', val)
-        if m:
-            return int(m.group(1), 16)
-        m = re.match(r'\(([hbd])([lce])\)', val)
-        if m:
-            return self.deref(m.group(1), m.group(2))
-        var = self.vars.get(val)
-        if var:
-            return var
-        return val
-
     def deref(self, reg1, reg2):
         U = self.registers.get(reg1).get()
         L = self.registers.get(reg2).get()
         return (U << 8) | L
 
     def eval(self, line):
-        m = re.match(r'^\s+([a-z]+)\s+([a-z0-9_]+)\s*,\s*([a-z0-9_\(\)]+)', line)
-        if m:
-            self.decode2(m.group(1), m.group(2), m.group(3))
-            return 0
-        m = re.match(r'^\s+([a-z]+)\s+([a-z0-9_]+)', line)
-        if m:
-            self.decode1(m.group(1), m.group(2))
-            return 0
-        m = re.match(r'^\s+([a-z]+)', line)
-        if m:
-            self.decode0(m.group(1))
-            return 0
-        m = re.match(r'^([a-z0-9_]+):\s+equ\s+([a-z0-9]+)$', line)
-        if m:
-            self.set_var(m.group(1), m.group(2))
-            return 0
-        self.message = ""
-        return 1
+        idx = 0
+        matches = ()
+        found = None
+        for pattern in self.patterns:
+            found = pattern.match(line)
+            if not found:
+                idx += 1
+                continue
+            matches = found.groups()
+            self.message = "%d" % (len(matches))
+            break
+        if not found:
+            raise Exception(line)
+        return 0
 
 class Z80Interp:
     def __init__(self, stdscr):
