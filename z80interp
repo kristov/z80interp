@@ -1,0 +1,27 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use lib qw(local/lib/perl5);
+use Curses::UI;
+
+sub main {
+    my $cui = Curses::UI->new(
+        -clear_on_exit => 1,
+        -color_support => 1,
+    );
+    my $win = $cui->add('win', 'Window',
+        -border => 0,
+        -y => 0,
+        -bfg => 'red',
+    );
+    my $editor = $win->add("text", "TextEditor");
+    my $status = $win->add("status", "TextEditor", -singleline => 1);
+    $cui->set_binding(sub {exit(0)}, "\cQ");
+    #$editor->set_binding(sub {exit(0)}, CUI_TAB());
+    $editor->focus();
+    $cui->mainloop;
+    return 0;
+}
+
+exit main();
